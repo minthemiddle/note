@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notizen</title>
+  <meta name="theme-color" content="#667eea">
+  <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIk5vdGl6ZW4iLAogICJzaG9ydF9uYW1lIjogIk5vdGl6ZW4iLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI2ZmZmZmZiIsCiAgInRoZW1lX2NvbG9yIjogIiM2NjdlZWEiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWwsJTNDc3ZnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zycgdmlld0JveD0nMCAwIDEwMCAxMDAnJTNFJTNDcmVjdCBmaWxsPSclMjM2NjdlZWEnIHdpZHRoPScxMDAnIGhlaWdodD0nMTAwJyByeD0nMjAnLyUzRSUzQ3RleHQgeD0nNTAnIHk9JzY1JyBmb250LXNpemU9JzUwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyUzRSVGMCU5RiU5MyVCRCUzQy90ZXh0JTNFJTNDL3N2ZyUzRSIsCiAgICAgICJzaXplcyI6ICIxOTJ4MTkyIiwKICAgICAgInR5cGUiOiAiaW1hZ2Uvc3ZnK3htbCIKICAgIH0sCiAgICB7CiAgICAgICJzcmMiOiAiZGF0YTppbWFnZS9zdmcreG1sLCUzQ3N2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJyUzRSUzQ3JlY3QgZmlsbD0nJTIzNjY3ZWVhJyB3aWR0aD0nMTAwJyBoZWlnaHQ9JzEwMCcgcng9JzIwJy8lM0UlM0N0ZXh0IHg9JzUwJyB5PSc2NScgZm9udC1zaXplPSc1MCcgdGV4dC1hbmNob3I9J21pZGRsZSclM0UlRjAlOUYlOTMlQkQlM0MvdGV4dCUzRSUzQy9zdmclM0UiLAogICAgICAic2l6ZXMiOiAiNTEyeDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3N2Zyt4bWwiCiAgICB9CiAgXSwKICAic2hhcmVfdGFyZ2V0IjogewogICAgImFjdGlvbiI6ICIuIiwKICAgICJtZXRob2QiOiAiR0VUIiwKICAgICJlbmNfdHlwZSI6ICJhcHBsaWNhdGlvbi94LXd3dy1mb3JtLXVybGVuY29kZWQiLAogICAgInBhcmFtcyI6IHsKICAgICAgInRpdGxlIjogInRpdGxlIiwKICAgICAgInRleHQiOiAidGV4dCIsCiAgICAgICJ1cmwiOiAidXJsIgogICAgfQogIH0KfQ==">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      color: #2d3748;
+      font-weight: 600;
+    }
+    
+    #noteInput {
+      width: 100%;
+      padding: 16px;
+      font-size: 15px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      min-height: 100px;
+      resize: vertical;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      transition: all 0.2s;
+      background: white;
+    }
+    
+    #noteInput:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    #noteInput::placeholder {
+      color: #a0aec0;
+    }
+    
+    .hint {
+      font-size: 12px;
+      color: #718096;
+      margin-top: -16px;
+      margin-bottom: 20px;
+      text-align: right;
+    }
+    
+    #notesList { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 12px; 
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #a0aec0;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    .note {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      transition: all 0.2s;
+      border: 1px solid #e2e8f0;
+      padding: 20px;
+    }
+    
+    .note:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+    
+    .note-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .note-time {
+      font-size: 13px;
+      color: #718096;
+      font-weight: 500;
+    }
+    
+    .edited-label {
+      font-size: 11px;
+      color: #a0aec0;
+      margin-left: 6px;
+      font-style: italic;
+    }
+    
+    .note-text {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: text;
+      display: block;
+      line-height: 1.6;
+      color: #2d3748;
+      background: #f7fafc;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    
+    .note-text:focus {
+      outline: none;
+      background: white;
+      border-color: #e2e8f0;
+    }
+    
+    .note-text.editing {
+      background: white;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .note-delete {
+      background: #fc8181;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .note-delete:hover { 
+      background: #f56565;
+      transform: scale(1.05);
+    }
+    
+    .note-delete:active {
+      transform: scale(0.95);
+    }
+    
+    @media (max-width: 600px) {
+      body { padding: 12px; }
+      .container { padding: 20px; }
+      h1 { font-size: 24px; }
+      .note-time { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📝 Notizen</h1>
+    <textarea id="noteInput" placeholder="Neue Notiz eingeben..."></textarea>
+    <div class="hint">Enter zum Speichern, Shift+Enter für neue Zeile</div>
+    <div id="notesList"></div>
+  </div>
+
+  <script>
+    const inp = document.getElementById('noteInput');
+    const list = document.getElementById('notesList');
+    let notes = JSON.parse(localStorage.getItem('notes') || '[]');
+
+    // Handle shared content from other apps
+    function handleSharedContent() {
+      const params = new URLSearchParams(window.location.search);
+      const sharedTitle = params.get('title');
+      const sharedText = params.get('text');
+      const sharedUrl = params.get('url');
+      
+      if (sharedTitle || sharedText || sharedUrl) {
+        let noteText = '';
+        if (sharedTitle) noteText += sharedTitle + '\n';
+        if (sharedText) noteText += sharedText + '\n';
+        if (sharedUrl) noteText += sharedUrl;
+        
+        noteText = noteText.trim();
+        
+        if (noteText) {
+          notes.unshift({ text: noteText, time: Date.now() });
+          saveNotes();
+          
+          // Clear URL params without reload
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+
+    handleSharedContent();
+
+    function saveNotes() {
+      localStorage.setItem('notes', JSON.stringify(notes));
+    }
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Gerade eben';
+      if (diffMins < 60) return `Vor ${diffMins} Min`;
+      if (diffHours < 24) return `Vor ${diffHours} Std`;
+      if (diffDays < 7) return `Vor ${diffDays} Tag${diffDays > 1 ? 'en' : ''}`;
+      
+      return d.toLocaleString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function renderNotes() {
+      if (notes.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <div>Noch keine Notizen vorhanden</div>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = notes.map((note, i) => `
+        <div class="note">
+          <div class="note-header">
+            <span class="note-time">
+              ${formatTime(note.time)}
+              ${note.edited ? '<span class="edited-label">(bearbeitet)</span>' : ''}
+            </span>
+            <button class="note-delete" onclick="deleteNote(${i})" title="Löschen">✕</button>
+          </div>
+          <div class="note-text" contenteditable="true" data-index="${i}">${note.text}</div>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.note-text').forEach(el => {
+        let originalText = el.textContent;
+        
+        el.addEventListener('input', () => {
+          if (el.textContent.trim() !== originalText.trim()) {
+            el.classList.add('editing');
+          } else {
+            el.classList.remove('editing');
+          }
+        });
+        
+        el.addEventListener('focus', () => {
+          originalText = el.textContent;
+        });
+        
+        el.addEventListener('blur', handleEdit);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            el.blur();
+          }
+        });
+      });
+    }
+
+    function deleteNote(i) {
+      if (confirm('Notiz wirklich löschen?')) {
+        notes.splice(i, 1);
+        saveNotes();
+        renderNotes();
+      }
+    }
+
+    function handleEdit(e) {
+      const i = parseInt(e.target.dataset.index);
+      const newText = e.target.textContent.trim();
+      if (newText && newText !== notes[i].text) {
+        notes[i].text = newText;
+        notes[i].edited = true;
+        saveNotes();
+        renderNotes();
+      } else if (!newText) {
+        renderNotes();
+      }
+    }
+
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const text = inp.value.trim();
+        if (text) {
+          notes.unshift({ text, time: Date.now() });
+          saveNotes();
+          renderNotes();
+          inp.value = '';
+          inp.focus();
+        }
+      }
+    });
+
+    inp.focus();
+    renderNotes();
+  </script>
+</body>
+</html>
