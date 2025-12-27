@@ -30,7 +30,7 @@
                     "Segoe UI",
                     Roboto;
                 background: var(--bg);
-                padding: 12px;
+                padding: 4px;
                 color: #111;
             }
             .wrap {
@@ -38,65 +38,39 @@
                 margin: 0 auto;
                 width: 100%;
             }
-            header {
-                display: flex;
-                align-items: center;
-                padding: 6px 4px 12px;
-            }
-            h1 {
-                font-size: 18px;
-                margin: 0;
-                font-weight: 600;
-            }
             #noteInput {
                 width: 100%;
                 padding: 14px;
                 font-size: 16px;
+                font-family: sans-serif;
                 border-radius: var(--r);
-                border: 1px solid #e5e7eb;
+                border: 1px solid #ccc;
                 background: var(--card);
                 min-height: 110px;
+                max-height: 50vh;
                 resize: vertical;
                 margin-bottom: 8px;
+                box-sizing: border-box;
+            }
+            #noteInput:focus {
+                outline: 1px solid #aaa;
+                border-color: #aaa;
             }
             .hint {
                 font-size: 13px;
                 color: var(--muted);
-                text-align: right;
+                text-align: center;
                 margin-bottom: 12px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                flex-wrap: wrap;
-                gap: 8px;
             }
-            .hint-text {
-                flex: 1;
-            }
-            .save-btn {
-                background: none;
+            .hint a {
                 color: var(--accent);
-                border: none;
-                padding: 0;
-                font-weight: 500;
-                cursor: pointer;
-                font-size: 13px;
-                display: none;
                 text-decoration: underline;
-            }
-            @media (max-width: 768px) {
-                .save-btn {
-                    display: block;
-                }
-                .hint {
-                    flex-direction: column;
-                    align-items: stretch;
-                }
+                cursor: pointer;
             }
             #notesList {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+                gap: 6px;
             }
             .empty-state {
                 text-align: center;
@@ -106,39 +80,44 @@
             .note {
                 background: var(--card);
                 border: 1px solid #e5e7eb;
-                padding: 12px;
+                padding: 4px 6px;
                 border-radius: var(--r);
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
+                gap: 2px;
             }
             .note-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                gap: 8px;
             }
             .note-time {
-                font-size: 13px;
+                font-size: 11px;
                 color: var(--muted);
+                flex-shrink: 0;
             }
             .note-text {
                 width: 100%;
                 font-size: 15px;
-                padding: 10px;
-                border-radius: 6px;
-                background: #fbfdff;
+                padding: 2px;
+                background: transparent;
                 white-space: pre-wrap;
                 word-break: break-word;
                 outline: none;
+                line-height: 1.4;
             }
             .note-delete {
-                background: var(--danger);
-                color: #fff;
+                background: none;
+                color: var(--muted);
                 border: none;
-                padding: 8px 12px;
-                border-radius: 6px;
-                font-weight: 600;
+                padding: 2px 6px;
+                font-size: 16px;
                 cursor: pointer;
+                flex-shrink: 0;
+            }
+            .note-delete:hover {
+                color: var(--danger);
             }
             @media (max-width: 420px) {
                 h1 {
@@ -153,15 +132,13 @@
     </head>
     <body>
         <div class="wrap">
-            <header><h1>📝 Notizen</h1></header>
-
             <textarea
                 id="noteInput"
                 placeholder="Neue Notiz eingeben..."
             ></textarea>
             <div class="hint">
-                <span class="hint-text">Shift+Enter zum Speichern · Enter für neue Zeile</span>
-                <button class="save-btn" id="saveBtn">Speichern</button>
+                Shift+Enter zum <a id="saveLink">Speichern</a> · Enter für neue
+                Zeile
             </div>
             <div id="notesList"></div>
         </div>
@@ -170,7 +147,7 @@
             // Grundapp (leicht gekürzt, wie vorher)
             const inp = document.getElementById("noteInput");
             const list = document.getElementById("notesList");
-            const saveBtn = document.getElementById("saveBtn");
+            const saveLink = document.getElementById("saveLink");
             let notes = JSON.parse(localStorage.getItem("notes") || "[]");
 
             function saveNotes() {
@@ -275,7 +252,8 @@
                 }
             });
 
-            saveBtn.addEventListener("click", () => {
+            saveLink.addEventListener("click", (e) => {
+                e.preventDefault();
                 addNote();
             });
 
