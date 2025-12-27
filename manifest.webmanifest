@@ -1,0 +1,24 @@
+{
+  "name": "Notizen",
+  "short_name": "Notizen",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f8",
+  "theme_color": "#f7f7f8",
+  "share_target": {
+    "action": "/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": ["*/*"]
+        }
+      ]
+    }
+  }
+}
