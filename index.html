@@ -288,22 +288,85 @@
         /* --- Handle Web Share Target (GET params) --- */
         function handleShareTarget() {
             const urlParams = new URLSearchParams(window.location.search);
-            const title = urlParams.get("title");
-            const text = urlParams.get("text");
-            const url = urlParams.get("url");
+            let title = urlParams.get("title") || "";
+            let text = urlParams.get("text") || "";
+            let url = urlParams.get("url") || "";
 
-            let noteText = "";
-            if (title) noteText += title + "\n";
-            if (text) noteText += text + "\n";
-            if (url) noteText += url;
-            noteText = noteText.trim();
+            // Helper to clean URL
+            const cleanUrl = (u) => {
+                try {
+                    const urlObj = new URL(u);
+                    // Remove text fragments
+                    urlObj.hash = urlObj.hash.replace(/:~:text=.*$/i, "");
+                    // Remove UTM params
+                    const paramsToRemove = [];
+                    for (const [key] of urlObj.searchParams) {
+                        if (key.startsWith("utm_")) paramsToRemove.push(key);
+                    }
+                    paramsToRemove.forEach((k) => urlObj.searchParams.delete(k));
+                    return urlObj.toString();
+                } catch (e) {
+                    return u;
+                }
+            };
 
-            if (noteText) {
-                notes.unshift({ text: noteText, time: Date.now() });
+            // Heuristic to handle Chrome's behavior where URL is often in 'text' too
+            // Find any URL in text
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const foundUrls = text.match(urlRegex);
+
+            // If we found a URL in text, and 'url' param matches or is empty, use the one from text
+            if (foundUrls && foundUrls.length > 0) {
+                const embeddedUrl = foundUrls[0];
+                if (!url || url === embeddedUrl) {
+                    url = embeddedUrl;
+                }
+                // Determine if 'text' is mostly just the URL. If so, clear text.
+                // Otherwise, remove the URL from text to leave just the content.
+                if (text.trim() === embeddedUrl) {
+                    text = "";
+                } else {
+                    text = text.replace(embeddedUrl, "").trim();
+                }
+            }
+
+            // Clean the final URL
+            if (url) {
+                url = cleanUrl(url);
+            }
+
+            // Construct Note
+            let noteContent = "";
+
+            // If we have actual text content (quote), format it
+            if (text) {
+                noteContent += `> ${text}\n\n`;
+            } else if (title) {
+                // Fallback: if no text but we have a title, use title as 'content' 
+                // (except if title is just generic, but usually it's the page title)
+                // Actually user probably wants page title in the source line or separate?
+                // Let's keep it simple: Text > Title
+                // But often Title is "Page Name". 
+                // User said: "> QUOTE \n Source: Link"
+                // If we also have a title, maybe add it? 
+                // Let's ignore title strictly if we have text, or prepend it? 
+                // User request implies simple quote format. Let's stick to text.
+                // If text is empty (just shared a link), maybe we want the title?
+                noteContent += `${title}\n\n`;
+            }
+
+            if (url) {
+                noteContent += `Source: ${url}`;
+            }
+
+            noteContent = noteContent.trim();
+
+            if (noteContent) {
+                notes.unshift({ text: noteContent, time: Date.now() });
                 saveNotes();
                 renderNotes();
                 // Clean up URL to remove share params
-                window.history.replaceState({}, document.title, "/");
+                window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
 
