@@ -11,8 +11,6 @@
         <style>
             /* Minimal / mobile-first (gekürzt) */
             :root {
-                --bg: #f7f7f8;
-                --card: #fff;
                 --muted: #6b7280;
                 --accent: #2563eb;
                 --danger: #ef4444;
@@ -29,7 +27,6 @@
                     -apple-system,
                     "Segoe UI",
                     Roboto;
-                background: var(--bg);
                 padding: 4px;
                 color: #111;
             }
@@ -49,6 +46,7 @@
                 min-height: 110px;
                 max-height: 50vh;
                 resize: vertical;
+                margin-top: 8px;
                 margin-bottom: 8px;
                 box-sizing: border-box;
             }
@@ -78,10 +76,8 @@
                 color: var(--muted);
             }
             .note {
-                background: var(--card);
-                border: 1px solid #e5e7eb;
+                margin-top: 4px;
                 padding: 4px 6px;
-                border-radius: var(--r);
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
