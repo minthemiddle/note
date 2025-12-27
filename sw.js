@@ -1,13 +1,13 @@
-const CACHE_NAME = "notizen-v2";
+const CACHE_NAME = "notizen-v3";
 const ASSETS_TO_CACHE = [
-    "/",
-    "/index.html",
-    "/icon.svg",
-    "/icon-192.png",
-    "/icon-512.png",
-    "/icon-maskable-192.png",
-    "/icon-maskable-512.png",
-    "/manifest.webmanifest"
+    "./",
+    "index.html",
+    "icon.svg",
+    "icon-192.png",
+    "icon-512.png",
+    "icon-maskable-192.png",
+    "icon-maskable-512.png",
+    "manifest.webmanifest"
 ];
 
 self.addEventListener("install", (event) => {
@@ -31,20 +31,12 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-    // Handle share target URL - redirect to index with params
-    const url = new URL(event.request.url);
-    if (url.pathname === "/share") {
-        // Redirect /share?params to /?params so index.html handles it
-        const redirectUrl = "/" + url.search;
-        event.respondWith(Response.redirect(redirectUrl, 303));
-        return;
-    }
-
     // Network-first for HTML, cache-first for assets
+    // Use 'navigate' mode check for HTML pages
     if (event.request.mode === "navigate") {
         event.respondWith(
             fetch(event.request).catch(() => {
-                return caches.match("/index.html");
+                return caches.match("index.html");
             })
         );
     } else {
