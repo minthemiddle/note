@@ -57,13 +57,41 @@
                 background: var(--card);
                 min-height: 110px;
                 resize: vertical;
+                margin-bottom: 8px;
             }
             .hint {
                 font-size: 13px;
                 color: var(--muted);
                 text-align: right;
-                margin-top: 8px;
                 margin-bottom: 12px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .hint-text {
+                flex: 1;
+            }
+            .save-btn {
+                background: none;
+                color: var(--accent);
+                border: none;
+                padding: 0;
+                font-weight: 500;
+                cursor: pointer;
+                font-size: 13px;
+                display: none;
+                text-decoration: underline;
+            }
+            @media (max-width: 768px) {
+                .save-btn {
+                    display: block;
+                }
+                .hint {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
             }
             #notesList {
                 display: flex;
@@ -132,7 +160,8 @@
                 placeholder="Neue Notiz eingeben..."
             ></textarea>
             <div class="hint">
-                Enter zum Speichern · Shift+Enter für neue Zeile
+                <span class="hint-text">Shift+Enter zum Speichern · Enter für neue Zeile</span>
+                <button class="save-btn" id="saveBtn">Speichern</button>
             </div>
             <div id="notesList"></div>
         </div>
@@ -141,10 +170,22 @@
             // Grundapp (leicht gekürzt, wie vorher)
             const inp = document.getElementById("noteInput");
             const list = document.getElementById("notesList");
+            const saveBtn = document.getElementById("saveBtn");
             let notes = JSON.parse(localStorage.getItem("notes") || "[]");
 
             function saveNotes() {
                 localStorage.setItem("notes", JSON.stringify(notes));
+            }
+
+            function addNote() {
+                const text = inp.value.trim();
+                if (text) {
+                    notes.unshift({ text, time: Date.now() });
+                    saveNotes();
+                    renderNotes();
+                    inp.value = "";
+                    inp.focus();
+                }
             }
             function formatTime(ts) {
                 const d = new Date(ts),
@@ -191,7 +232,7 @@
                     el.addEventListener("focus", () => (orig = el.textContent));
                     el.addEventListener("blur", handleEdit);
                     el.addEventListener("keydown", (e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
+                        if (e.key === "Enter" && e.shiftKey) {
                             e.preventDefault();
                             el.blur();
                         }
@@ -228,18 +269,16 @@
             }
 
             inp.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && e.shiftKey) {
                     e.preventDefault();
-                    const text = inp.value.trim();
-                    if (text) {
-                        notes.unshift({ text, time: Date.now() });
-                        saveNotes();
-                        renderNotes();
-                        inp.value = "";
-                        inp.focus();
-                    }
+                    addNote();
                 }
             });
+
+            saveBtn.addEventListener("click", () => {
+                addNote();
+            });
+
             inp.focus();
             renderNotes();
 
