@@ -1,71 +1,57 @@
-const CACHE_NAME = "notizen-v1";
+const CACHE_NAME = "notizen-v2";
+const ASSETS_TO_CACHE = [
+    "/",
+    "/index.html",
+    "/icon.svg",
+    "/icon-192.png",
+    "/icon-512.png",
+    "/icon-maskable-192.png",
+    "/icon-maskable-512.png",
+    "/manifest.webmanifest"
+];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll(ASSETS_TO_CACHE);
+        })
+    );
+    self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
+    event.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+            );
+        })
+    );
+    event.waitUntil(clients.claim());
 });
 
 self.addEventListener("fetch", (event) => {
-  // Handle POST requests from Web Share Target
-  if (event.request.method === "POST") {
-    event.respondWith(
-      (async () => {
-        const formData = await event.request.formData();
-        const title = formData.get("title");
-        const text = formData.get("text");
-        const url = formData.get("url");
-        const files = formData.getAll("files");
+    // Handle share target URL - redirect to index with params
+    const url = new URL(event.request.url);
+    if (url.pathname === "/share") {
+        // Redirect /share?params to /?params so index.html handles it
+        const redirectUrl = "/" + url.search;
+        event.respondWith(Response.redirect(redirectUrl, 303));
+        return;
+    }
 
-        const payload = { title, text, url, files: [] };
-
-        // Process files if present
-        if (files && files.length > 0) {
-          for (const file of files) {
-            if (file.size > 0) {
-              // Convert file to data URL for storage
-              const reader = new FileReader();
-              const filePromise = new Promise((resolve) => {
-                reader.onload = () => {
-                  payload.files.push({
-                    name: file.name,
-                    type: file.type,
-                    url: reader.result,
-                  });
-                  resolve();
-                };
-                reader.readAsDataURL(file);
-              });
-              await filePromise;
-            }
-          }
-        }
-
-        // Get all clients and send the shared data
-        const clients = await self.clients.matchAll({
-          type: "window",
-          includeUncontrolled: true,
-        });
-
-        // Send to the focused client or the first available client
-        const client =
-          clients.find((c) => c.focused) || clients.find((c) => c.url === "/") || clients[0];
-
-        if (client) {
-          client.postMessage({
-            type: "shared-data",
-            payload: payload,
-          });
-        }
-
-        // Redirect to home
-        return Response.redirect("/", 303);
-      })()
-    );
-  } else {
-    // For GET requests, just pass through
-    event.respondWith(fetch(event.request));
-  }
+    // Network-first for HTML, cache-first for assets
+    if (event.request.mode === "navigate") {
+        event.respondWith(
+            fetch(event.request).catch(() => {
+                return caches.match("/index.html");
+            })
+        );
+    } else {
+        event.respondWith(
+            caches.match(event.request).then((cached) => {
+                return cached || fetch(event.request);
+            })
+        );
+    }
 });

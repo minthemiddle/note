@@ -267,29 +267,33 @@
                     .catch((err) => {
                         console.warn("SW registration failed", err);
                     });
+            }
 
-                // Empfang von geteilten Daten aus dem Service Worker
-                navigator.serviceWorker.addEventListener("message", (event) => {
-                    if (event.data && event.data.type === "shared-data") {
-                        const payload = event.data.payload;
-                        let noteText = "";
-                        if (payload.title) noteText += payload.title + "\n";
-                        if (payload.text) noteText += payload.text + "\n";
-                        if (payload.url) noteText += payload.url + "\n";
-                        if (payload.files)
-                            payload.files.forEach(
-                                (f) =>
-                                    (noteText += `[Datei: ${f.name}] ${f.url}\n`),
-                            );
-                        noteText = noteText.trim();
-                        if (noteText) {
-                            notes.unshift({ text: noteText, time: Date.now() });
-                            saveNotes();
-                            renderNotes();
-                            window.focus();
-                        }
-                    }
-                });
+            /* --- Handle Web Share Target (GET params) --- */
+            function handleShareTarget() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const title = urlParams.get("title");
+                const text = urlParams.get("text");
+                const url = urlParams.get("url");
+
+                let noteText = "";
+                if (title) noteText += title + "\n";
+                if (text) noteText += text + "\n";
+                if (url) noteText += url;
+                noteText = noteText.trim();
+
+                if (noteText) {
+                    notes.unshift({ text: noteText, time: Date.now() });
+                    saveNotes();
+                    renderNotes();
+                    // Clean up URL to remove share params
+                    window.history.replaceState({}, document.title, "/");
+                }
+            }
+
+            // Check if we arrived via share target
+            if (window.location.search) {
+                handleShareTarget();
             }
         </script>
     </body>
