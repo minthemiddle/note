@@ -1,0 +1,130 @@
+/* Minimal / mobile-first */
+:root {
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --danger: #ef4444;
+    --r: 8px;
+    --card: #ffffff;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto;
+    padding: 4px;
+    color: #111;
+    background-color: #f7f7f8;
+}
+
+.wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+#noteInput {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-family: sans-serif;
+    border-radius: var(--r);
+    border: 1px solid #ccc;
+    background: var(--card);
+    min-height: 110px;
+    max-height: 50vh;
+    resize: vertical;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+
+#noteInput:focus {
+    outline: 1px solid #aaa;
+    border-color: #aaa;
+}
+
+.hint {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.hint a {
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+#notesList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 28px 12px;
+    color: var(--muted);
+}
+
+.note {
+    margin-top: 4px;
+    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.note-time {
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+
+.note-text {
+    width: 100%;
+    font-size: 15px;
+    padding: 2px;
+    background: transparent;
+    white-space: pre-wrap;
+    word-break: break-word;
+    outline: none;
+    line-height: 1.4;
+}
+
+.note-delete {
+    background: none;
+    color: var(--muted);
+    border: none;
+    padding: 2px 6px;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.note-delete:hover {
+    color: var(--danger);
+}
+
+@media (max-width: 420px) {
+    h1 {
+        font-size: 16px;
+    }
+
+    #noteInput {
+        padding: 12px;
+        min-height: 100px;
+    }
+}

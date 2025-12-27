@@ -1,7 +1,9 @@
-const CACHE_NAME = "notizen-v3";
+const CACHE_NAME = "notizen-v4";
 const ASSETS_TO_CACHE = [
     "./",
     "index.html",
+    "style.css",
+    "script.js",
     "icon.svg",
     "icon-192.png",
     "icon-512.png",
