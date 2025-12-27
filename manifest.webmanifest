@@ -4,7 +4,15 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f7f8",
-  "theme_color": "#f7f7f8",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
   "share_target": {
     "action": "/",
     "method": "POST",
