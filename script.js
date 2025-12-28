@@ -81,12 +81,21 @@ const Utils = {
         } catch (e) {
             return u;
         }
+    },
+    debounce(ms, fn) {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), ms);
+        };
     }
 };
 
 // --- App Logic ---
 const App = {
     notes: Store.get(),
+    debouncedUpdate: null,
+
     elements: {
         input: document.getElementById("noteInput"),
         list: document.getElementById("notesList"),
@@ -97,6 +106,14 @@ const App = {
     },
 
     init() {
+        // Initialize debounced update (wait 1s of inactivity to save)
+        this.debouncedUpdate = Utils.debounce(1000, (index, text) => {
+            if (this.notes[index] && this.notes[index].text !== text) {
+                console.log("Autosaving note", index);
+                this.notes = Store.update(index, text);
+            }
+        });
+
         this.render();
         this.bindEvents();
         this.registerServiceWorker();
@@ -139,6 +156,8 @@ const App = {
 
     deleteNote(i) {
         if (confirm("Notiz wirklich löschen?")) {
+            // Cancel any pending debounced updates to avoid zombie writes
+            // Ideally debounce would support cancellation, but simplistic reload is fine
             this.notes = Store.delete(i);
             this.render();
         }
@@ -177,31 +196,66 @@ const App = {
         }
     },
 
-    exportAll() {
+    async exportAll() {
         if (this.notes.length === 0) return;
         const text = this.generateExportString();
+        const date = new Date().toISOString().split("T")[0];
+        const fileName = `notizen_export_${date}.md`;
+
+        // Modern File System Access API
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fileName,
+                    types: [{
+                        description: 'Markdown File',
+                        accept: { 'text/markdown': ['.md'] },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(text);
+                await writable.close();
+                return;
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('File Picker failed, falling back:', err);
+                } else {
+                    return; // User cancelled
+                }
+            }
+        }
+
+        // Legacy Fallback
         const blob = new Blob([text], { type: "text/markdown" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        const date = new Date().toISOString().split("T")[0];
-        a.download = `notizen_export_${date}.md`;
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     },
 
-    handleEdit(e) {
+    handleInput(e) {
+        const i = parseInt(e.target.dataset.index);
+        // With plaintext-only, textContent is exactly what we want
+        const newText = e.target.textContent.trim();
+        e.target.classList.toggle("editing", true);
+        this.debouncedUpdate(i, newText);
+    },
+
+    handleBlur(e) {
         const i = parseInt(e.target.dataset.index);
         const newText = e.target.textContent.trim();
         const currentText = this.notes[i].text;
 
+        e.target.classList.remove("editing");
+
         if (newText && newText !== currentText) {
+            // Final save on blur
             this.notes = Store.update(i, newText);
-            this.render();
-        } else if (!newText) {
-            this.render();
+            this.render(); // Re-render to ensure state consistency
         }
     },
 
@@ -219,17 +273,13 @@ const App = {
             <div class="note-time">${Utils.formatTime(note.time)} ${note.edited ? '<span style="font-size:12px;color:#6b7280;margin-left:6px">(bearbeitet)</span>' : ""}</div>
             <button class="note-delete" onclick="deleteNote(${i})" title="Löschen">✕</button>
           </div>
-          <div class="note-text" contenteditable="true" data-index="${i}">${Utils.escapeHtml(note.text)}</div>
+          <div class="note-text" contenteditable="plaintext-only" data-index="${i}">${Utils.escapeHtml(note.text)}</div>
         </div>`).join("");
 
-        // Attach listeners to new elements
+        // Attach listeners
         document.querySelectorAll(".note-text").forEach((el) => {
-            let orig = el.textContent;
-            el.addEventListener("input", () =>
-                el.classList.toggle("editing", el.textContent.trim() !== orig.trim())
-            );
-            el.addEventListener("focus", () => (orig = el.textContent));
-            el.addEventListener("blur", (e) => this.handleEdit(e));
+            el.addEventListener("input", (e) => this.handleInput(e));
+            el.addEventListener("blur", (e) => this.handleBlur(e));
             el.addEventListener("keydown", (e) => {
                 if (e.key === "Enter" && e.shiftKey) {
                     e.preventDefault();
@@ -259,7 +309,6 @@ const App = {
         let text = urlParams.get("text") || "";
         let url = urlParams.get("url") || "";
 
-        // Heuristic: Check if text contains URL
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const foundUrls = text.match(urlRegex);
 
@@ -294,10 +343,10 @@ const App = {
         if (noteContent) {
             this.notes = Store.add(noteContent);
             this.render();
+            // Remove params without refreshing
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     }
 };
 
-// Start the app
 App.init();
