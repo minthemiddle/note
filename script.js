@@ -24,6 +24,10 @@ const Store = {
         this.save(notes);
         return notes;
     },
+    deleteAll() {
+        this.save([]);
+        return [];
+    },
     update(index, text) {
         const notes = this.get();
         if (notes[index].text !== text) {
@@ -77,7 +81,10 @@ const App = {
     elements: {
         input: document.getElementById("noteInput"),
         list: document.getElementById("notesList"),
-        saveLink: document.getElementById("saveLink")
+        saveLink: document.getElementById("saveLink"),
+        actionCopy: document.getElementById("actionCopy"),
+        actionExport: document.getElementById("actionExport"),
+        actionDelete: document.getElementById("actionDelete")
     },
 
     init() {
@@ -88,7 +95,7 @@ const App = {
     },
 
     bindEvents() {
-        const { input, saveLink } = this.elements;
+        const { input, saveLink, actionCopy, actionExport, actionDelete } = this.elements;
 
         input.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && e.shiftKey) {
@@ -102,8 +109,12 @@ const App = {
             this.addNote();
         });
 
+        // Footer Actions
+        if (actionCopy) actionCopy.addEventListener("click", () => this.copyAll());
+        if (actionExport) actionExport.addEventListener("click", () => this.exportAll());
+        if (actionDelete) actionDelete.addEventListener("click", () => this.deleteAll());
+
         // Global functions for inline usage (deleteNote)
-        // Note: Ideally we delegate events, but keeping it simple for now to match index.html style
         window.deleteNote = (i) => this.deleteNote(i);
     },
 
@@ -124,6 +135,54 @@ const App = {
         }
     },
 
+    deleteAll() {
+        if (this.notes.length === 0) return;
+        if (confirm("Wirklich ALLE Notizen löschen? Das kann nicht rückgängig gemacht werden.")) {
+            this.notes = Store.deleteAll();
+            this.render();
+        }
+    },
+
+    generateExportString() {
+        return this.notes
+            .map((note) => {
+                const time = Utils.formatTime(note.time);
+                return `## ${time}\n\n${note.text}\n\n`;
+            })
+            .join("");
+    },
+
+    async copyAll() {
+        if (this.notes.length === 0) return;
+        const text = this.generateExportString();
+        try {
+            await navigator.clipboard.writeText(text);
+            const originalText = this.elements.actionCopy.textContent;
+            this.elements.actionCopy.textContent = "Kopiert! ✓";
+            setTimeout(() => {
+                this.elements.actionCopy.textContent = originalText;
+            }, 2000);
+        } catch (err) {
+            console.error("Failed to copy:", err);
+            alert("Konnte nicht kopieren.");
+        }
+    },
+
+    exportAll() {
+        if (this.notes.length === 0) return;
+        const text = this.generateExportString();
+        const blob = new Blob([text], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const date = new Date().toISOString().split("T")[0];
+        a.download = `notizen_export_${date}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+
     handleEdit(e) {
         const i = parseInt(e.target.dataset.index);
         const newText = e.target.textContent.trim();
@@ -133,8 +192,6 @@ const App = {
             this.notes = Store.update(i, newText);
             this.render();
         } else if (!newText) {
-            // Re-render if empty to restore or delete? 
-            // Original logic just re-rendered.
             this.render();
         }
     },

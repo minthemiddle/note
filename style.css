@@ -123,8 +123,32 @@ body {
         font-size: 16px;
     }
 
+
     #noteInput {
         padding: 12px;
         min-height: 100px;
     }
+}
+
+.footer-actions {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.footer-actions a {
+    cursor: pointer;
+    text-decoration: underline;
+    opacity: 0.8;
+}
+
+.footer-actions a:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.footer-actions a.danger:hover {
+    color: var(--danger);
 }
