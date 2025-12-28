@@ -51,6 +51,15 @@ const Utils = {
             minute: "2-digit",
         });
     },
+    formatTimeCompact(ts) {
+        const d = new Date(ts);
+        const yy = String(d.getFullYear()).slice(-2);
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const HH = String(d.getHours()).padStart(2, "0");
+        const MM = String(d.getMinutes()).padStart(2, "0");
+        return `${yy}${mm}${dd}${HH}${MM}`;
+    },
     escapeHtml(str) {
         return String(str)
             .replace(/&/g, "&amp;")
@@ -146,7 +155,7 @@ const App = {
     generateExportString() {
         return this.notes
             .map((note) => {
-                const time = Utils.formatTime(note.time);
+                const time = Utils.formatTimeCompact(note.time);
                 return `## ${time}\n\n${note.text}\n\n`;
             })
             .join("");
