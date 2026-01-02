@@ -43,7 +43,8 @@ const Store = {
 const Utils = {
     formatTime(ts) {
         const d = new Date(ts);
-        return d.toLocaleString("de-DE", {
+        const locale = navigator.language || "de-DE";
+        return d.toLocaleString(locale, {
             day: "2-digit",
             month: "2-digit",
             year: "numeric",
@@ -92,6 +93,8 @@ const Utils = {
 };
 
 // --- App Logic ---
+const AUTOSAVE_DELAY_MS = 1000;
+
 const App = {
     notes: Store.get(),
     debouncedUpdate: null,
@@ -106,8 +109,8 @@ const App = {
     },
 
     init() {
-        // Initialize debounced update (wait 1s of inactivity to save)
-        this.debouncedUpdate = Utils.debounce(1000, (index, text) => {
+        // Initialize debounced update
+        this.debouncedUpdate = Utils.debounce(AUTOSAVE_DELAY_MS, (index, text) => {
             if (this.notes[index] && this.notes[index].text !== text) {
                 console.log("Autosaving note", index);
                 this.notes = Store.update(index, text);
@@ -118,6 +121,7 @@ const App = {
         this.bindEvents();
         this.registerServiceWorker();
         this.checkShareTarget();
+        this.checkStorageQuota();
     },
 
     bindEvents() {
@@ -294,8 +298,8 @@ const App = {
           <div class="note-header">
             <div class="note-time">${Utils.formatTime(note.time)} ${note.edited ? '<span style="font-size:12px;color:#6b7280;margin-left:6px">(bearbeitet)</span>' : ""}</div>
             <div class="note-actions">
-              <a class="note-copy" data-copy-index="${i}" onclick="copyNote(${i})">Kopieren</a>
-              <button class="note-delete" onclick="deleteNote(${i})" title="Löschen">✕</button>
+              <a class="note-copy" data-copy-index="${i}" onclick="copyNote(${i})" aria-label="Notiz kopieren">Kopieren</a>
+              <button class="note-delete" onclick="deleteNote(${i})" title="Löschen" aria-label="Notiz löschen">✕</button>
             </div>
           </div>
           <div class="note-text" contenteditable="plaintext-only" data-index="${i}">${Utils.escapeHtml(note.text)}</div>
@@ -315,10 +319,44 @@ const App = {
     },
 
     registerServiceWorker() {
-        if ("serviceWorker" in navigator) {
-            navigator.serviceWorker
-                .register("sw.js")
-                .catch((err) => console.warn("SW registration failed", err));
+        if (!("serviceWorker" in navigator)) return;
+
+        navigator.serviceWorker
+            .register("sw.js")
+            .then((registration) => {
+                // Check for updates periodically
+                setInterval(() => {
+                    registration.update();
+                }, 60000); // Check every minute
+
+                // Listen for updates
+                registration.addEventListener("updatefound", () => {
+                    const newWorker = registration.installing;
+                    if (!newWorker) return;
+
+                    newWorker.addEventListener("statechange", () => {
+                        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                            // New service worker is waiting
+                            this.showUpdateNotification(registration);
+                        }
+                    });
+                });
+            })
+            .catch((err) => console.warn("SW registration failed", err));
+
+        // Handle controller change (reload triggered)
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+            window.location.reload();
+        });
+    },
+
+    showUpdateNotification(registration) {
+        const message = "Neue Version verfügbar! Seite neu laden?";
+        if (confirm(message)) {
+            const waitingWorker = registration.waiting;
+            if (waitingWorker) {
+                waitingWorker.postMessage({ type: "SKIP_WAITING" });
+            }
         }
     },
 
@@ -370,6 +408,26 @@ const App = {
             this.render();
             // Remove params without refreshing
             window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    },
+
+    async checkStorageQuota() {
+        if (!navigator.storage || !navigator.storage.estimate) {
+            return; // API not supported
+        }
+
+        try {
+            const estimate = await navigator.storage.estimate();
+            const usage = estimate.usage || 0;
+            const quota = estimate.quota || 0;
+            const percentUsed = (usage / quota) * 100;
+
+            if (percentUsed > 80) {
+                console.warn(`Storage quota: ${percentUsed.toFixed(1)}% used (${usage}/${quota} bytes)`);
+                alert(`Warnung: Speicher zu ${Math.round(percentUsed)}% voll. Bitte alte Notizen löschen oder exportieren.`);
+            }
+        } catch (err) {
+            console.error("Failed to check storage quota:", err);
         }
     }
 };

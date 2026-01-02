@@ -1,6 +1,7 @@
 {
     "name": "Notizen",
     "short_name": "Notizen",
+    "description": "Schnelle Notiz-App mit automatischer Speicherung",
     "start_url": "./",
     "display": "standalone",
     "background_color": "#f7f7f8",
@@ -59,5 +60,19 @@
             "text": "text",
             "url": "url"
         }
-    }
+    },
+    "shortcuts": [
+        {
+            "name": "Neue Notiz",
+            "short_name": "Neu",
+            "description": "Neue Notiz erstellen",
+            "url": "./?action=new",
+            "icons": [
+                {
+                    "src": "icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ]
 }
