@@ -140,8 +140,9 @@ const App = {
         if (actionExport) actionExport.addEventListener("click", () => this.exportAll());
         if (actionDelete) actionDelete.addEventListener("click", () => this.deleteAll());
 
-        // Global functions for inline usage (deleteNote)
+        // Global functions for inline usage (deleteNote, copyNote)
         window.deleteNote = (i) => this.deleteNote(i);
+        window.copyNote = (i) => this.copyNote(i);
     },
 
     addNote() {
@@ -192,6 +193,27 @@ const App = {
             }, 2000);
         } catch (err) {
             console.error("Failed to copy:", err);
+            alert("Konnte nicht kopieren.");
+        }
+    },
+
+    async copyNote(i) {
+        const note = this.notes[i];
+        if (!note) return;
+        const time = Utils.formatTimeCompact(note.time);
+        const text = `## ${time}\n\n${note.text}\n\n`;
+        try {
+            await navigator.clipboard.writeText(text);
+            const button = document.querySelector(`[data-copy-index="${i}"]`);
+            if (button) {
+                const originalText = button.textContent;
+                button.textContent = "Kopiert! ✓";
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }
+        } catch (err) {
+            console.error("Failed to copy note:", err);
             alert("Konnte nicht kopieren.");
         }
     },
@@ -271,7 +293,10 @@ const App = {
         <div class="note">
           <div class="note-header">
             <div class="note-time">${Utils.formatTime(note.time)} ${note.edited ? '<span style="font-size:12px;color:#6b7280;margin-left:6px">(bearbeitet)</span>' : ""}</div>
-            <button class="note-delete" onclick="deleteNote(${i})" title="Löschen">✕</button>
+            <div class="note-actions">
+              <a class="note-copy" data-copy-index="${i}" onclick="copyNote(${i})">Kopieren</a>
+              <button class="note-delete" onclick="deleteNote(${i})" title="Löschen">✕</button>
+            </div>
           </div>
           <div class="note-text" contenteditable="plaintext-only" data-index="${i}">${Utils.escapeHtml(note.text)}</div>
         </div>`).join("");
