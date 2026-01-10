@@ -1,7 +1,346 @@
 /**
  * Note App - Script
- * Handles state, UI rendering, and share target logic.
+ * Handles state, UI rendering, share target logic, and PocketBase sync.
  */
+
+console.log('[Note App] Script version: v13 - DateTime fields for PocketBase');
+
+// --- PocketBase Sync Layer ---
+const pb = new PocketBase(window.location.origin);
+const SYNC_USER_EMAIL = "user@note.local";
+const SYNC_USER_PASSWORD = "notesapp2026";
+
+// Enable debugging
+const DEBUG = true;
+const log = (...args) => DEBUG && console.log('[Note Sync]', ...args);
+const warn = (...args) => console.warn('[Note Sync]', ...args);
+const error = (...args) => console.error('[Note Sync]', ...args);
+
+const Sync = {
+    authenticated: false,
+    syncing: false,
+
+    // Helper to get user model from authStore (SDK stores it as 'model' not 'record')
+    getUserModel() {
+        return pb.authStore.model || pb.authStore.baseModel || null;
+    },
+
+    getUserId() {
+        const model = this.getUserModel();
+        return model?.id || null;
+    },
+
+    async init() {
+        log('========================================');
+        log('Initializing PocketBase sync...');
+        log('PocketBase URL:', window.location.origin);
+        log('========================================');
+
+        try {
+            // Try to restore auth from localStorage
+            log('Step 1: Loading auth from cookie...');
+            pb.authStore.loadFromCookie(document.cookie);
+            log('Auth store isValid:', pb.authStore.isValid);
+            log('Auth store has record:', !!pb.authStore.record);
+
+            if (!pb.authStore.isValid) {
+                log('Step 2: No valid auth found, attempting login...');
+                log('Credentials:');
+                log('  Email:', SYNC_USER_EMAIL);
+                log('  Password:', SYNC_USER_PASSWORD.substring(0, 4) + '****');
+
+                try {
+                    // Auto-login
+                    log('Calling pb.collection("users").authWithPassword()...');
+                    const authData = await pb.collection('users').authWithPassword(SYNC_USER_EMAIL, SYNC_USER_PASSWORD);
+                    log('✓ Authentication successful!');
+                    log('Auth data:', {
+                        userId: authData.record?.id,
+                        email: authData.record?.email,
+                        username: authData.record?.username,
+                        token: authData.token ? authData.token.substring(0, 20) + '...' : 'NO TOKEN'
+                    });
+
+                    // Check all possible property names for the user record
+                    log('Checking authStore properties...');
+                    log('pb.authStore.model:', pb.authStore.model);
+                    log('pb.authStore.baseModel:', pb.authStore.baseModel);
+                    log('pb.authStore.record:', pb.authStore.record);
+
+                    if (!authData.record || !authData.record.id) {
+                        error('❌ Login succeeded but no user record returned!');
+                        error('authData:', authData);
+                        this.authenticated = false;
+                        return;
+                    }
+                } catch (authErr) {
+                    error('========================================');
+                    error('❌ LOGIN FAILED');
+                    error('========================================');
+                    error('Have you created the user in PocketBase?');
+                    error('Required credentials:');
+                    error('  Email:', SYNC_USER_EMAIL);
+                    error('  Password:', SYNC_USER_PASSWORD);
+                    error('');
+                    error('API Error:', authErr);
+                    error('Error status:', authErr.status);
+                    error('Error data:', authErr.data);
+                    error('Error response:', authErr.response);
+                    error('Error message:', authErr.message);
+                    error('========================================');
+                    this.authenticated = false;
+                    return;
+                }
+            } else {
+                log('Step 2: Using existing auth from cookie');
+                log('Existing auth:', {
+                    isValid: pb.authStore.isValid,
+                    token: pb.authStore.token
+                });
+            }
+
+            // Verify auth is valid
+            log('Step 3: Verifying authentication...');
+            log('pb.authStore.isValid:', pb.authStore.isValid);
+            log('pb.authStore.token:', pb.authStore.token ? 'Present' : 'Missing');
+
+            if (!pb.authStore.isValid || !pb.authStore.token) {
+                error('❌ Auth is not valid after login!');
+                error('pb.authStore:', pb.authStore);
+                this.authenticated = false;
+                return;
+            }
+
+            log('Step 4: Setting authenticated = true');
+            this.authenticated = true;
+            log('✓ Authentication complete!');
+
+            // Get user info from the correct property
+            const userModel = pb.authStore.model || pb.authStore.baseModel || {};
+            log('Final auth state:', {
+                authenticated: this.authenticated,
+                userId: userModel.id,
+                email: userModel.email,
+                isValid: pb.authStore.isValid
+            });
+
+            // Pull from server on init (server wins)
+            log('Step 5: Pulling data from server...');
+            await this.pullFromServer();
+            log('========================================');
+        } catch (err) {
+            error('========================================');
+            error('❌ UNEXPECTED ERROR during sync init');
+            error('========================================');
+            error('Error:', err);
+            error('Error stack:', err.stack);
+            error('Error details:', err.response || err.message);
+            error('========================================');
+            this.authenticated = false;
+        }
+    },
+
+    async pullFromServer() {
+        if (!this.authenticated) {
+            warn('Skipping pull: not authenticated');
+            return;
+        }
+        if (this.syncing) {
+            warn('Skipping pull: already syncing');
+            return;
+        }
+
+        // Safety check
+        const userId = this.getUserId();
+        if (!userId) {
+            error('❌ Cannot pull: user ID missing');
+            this.authenticated = false;
+            return;
+        }
+
+        this.syncing = true;
+        log('Fetching notes from server...');
+
+        try {
+            log('User ID:', userId);
+
+            const records = await pb.collection('notes').getFullList({
+                sort: '-time',
+                filter: `user = "${userId}"`,
+            });
+
+            log(`✓ Fetched ${records.length} notes from server`);
+
+            if (records.length > 0) {
+                // Server wins: replace local data
+                const notes = records.map(r => {
+                    // Convert DateTime string to milliseconds for local use
+                    const timeMs = r.time ? new Date(r.time).getTime() : Date.now();
+
+                    return {
+                        id: r.id,
+                        clientId: r.clientId || Store.generateId(), // Generate if missing
+                        text: r.text,
+                        time: r.time,    // Keep ISO string for server
+                        timeMs: timeMs,  // Milliseconds for local sorting/display
+                        edited: r.edited || false,
+                    };
+                });
+
+                localStorage.setItem("notes", JSON.stringify(notes));
+                log('✓ Local storage updated with server data');
+                log('Notes:', notes);
+            } else {
+                log('No notes on server');
+            }
+        } catch (err) {
+            error('❌ Failed to pull from server:', err);
+            error('Error details:', err.response || err.message);
+        } finally {
+            this.syncing = false;
+        }
+    },
+
+    async pushToServer(note) {
+        if (!this.authenticated) {
+            warn('Skipping push: not authenticated');
+            return;
+        }
+
+        // Safety check
+        const userId = this.getUserId();
+        if (!userId) {
+            error('❌ Cannot push: user ID missing');
+            this.authenticated = false;
+            return;
+        }
+
+        // Ensure note has a clientId
+        if (!note.clientId) {
+            note.clientId = Store.generateId();
+            log('Generated missing clientId:', note.clientId);
+        }
+
+        try {
+            const data = {
+                clientId: note.clientId,
+                text: note.text,
+                time: note.time,
+                edited: note.edited || false,
+                user: userId,
+            };
+
+            log('Pushing note to server:', {
+                serverId: note.id,
+                clientId: note.clientId,
+                textPreview: note.text.substring(0, 50) + '...'
+            });
+
+            if (note.id) {
+                // Update existing by server ID
+                const record = await pb.collection('notes').update(note.id, data);
+                log('✓ Note updated on server:', record.id);
+            } else {
+                // Check if note already exists on server by clientId
+                try {
+                    const existing = await pb.collection('notes').getFirstListItem(
+                        `clientId = "${note.clientId}" && user = "${userId}"`
+                    );
+
+                    if (existing) {
+                        log('Found existing note by clientId, updating:', existing.id);
+                        const record = await pb.collection('notes').update(existing.id, data);
+                        note.id = record.id;
+
+                        // Update localStorage with server ID
+                        const notes = Store.get();
+                        const noteIndex = notes.findIndex(n => n.clientId === note.clientId);
+                        if (noteIndex !== -1) {
+                            notes[noteIndex].id = record.id;
+                            Store.save(notes);
+                            log('✓ Local note updated with server ID');
+                        }
+
+                        log('✓ Note updated on server:', record.id);
+                        return;
+                    }
+                } catch (err) {
+                    // Note doesn't exist, will create below
+                    log('Note not found on server by clientId, creating new');
+                }
+
+                // Create new
+                const record = await pb.collection('notes').create(data);
+                note.id = record.id;
+                log('✓ Note created on server:', record.id);
+
+                // Update localStorage with server ID
+                const notes = Store.get();
+                const noteIndex = notes.findIndex(n => n.clientId === note.clientId);
+                if (noteIndex !== -1) {
+                    notes[noteIndex].id = record.id;
+                    Store.save(notes);
+                    log('✓ Local note updated with server ID');
+                }
+            }
+        } catch (err) {
+            error('❌ Failed to push to server:', err);
+            error('Error details:', err.response || err.message);
+        }
+    },
+
+    async deleteFromServer(noteId) {
+        if (!this.authenticated) {
+            warn('Skipping delete: not authenticated');
+            return;
+        }
+        if (!noteId) {
+            warn('Skipping delete: no noteId provided');
+            return;
+        }
+
+        try {
+            log('Deleting note from server:', noteId);
+            await pb.collection('notes').delete(noteId);
+            log('✓ Note deleted from server');
+        } catch (err) {
+            error('❌ Failed to delete from server:', err);
+            error('Error details:', err.response || err.message);
+        }
+    },
+
+    async deleteAllFromServer() {
+        if (!this.authenticated) {
+            warn('Skipping delete all: not authenticated');
+            return;
+        }
+
+        // Safety check
+        const userId = this.getUserId();
+        if (!userId) {
+            error('❌ Cannot delete all: user ID missing');
+            this.authenticated = false;
+            return;
+        }
+
+        try {
+            log('Deleting all notes from server...');
+            const records = await pb.collection('notes').getFullList({
+                filter: `user = "${userId}"`,
+            });
+
+            log(`Found ${records.length} notes to delete`);
+            for (const record of records) {
+                await pb.collection('notes').delete(record.id);
+                log('Deleted note:', record.id);
+            }
+            log('✓ All notes deleted from server');
+        } catch (err) {
+            error('❌ Failed to delete all from server:', err);
+            error('Error details:', err.response || err.message);
+        }
+    }
+};
 
 // --- Data Layer ---
 const Store = {
@@ -11,29 +350,63 @@ const Store = {
     save(notes) {
         localStorage.setItem("notes", JSON.stringify(notes));
     },
-    add(text) {
+
+    // Generate client-side UUID
+    generateId() {
+        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    },
+
+    async add(text) {
         if (!text.trim()) return;
         const notes = this.get();
-        notes.unshift({ text, time: Date.now() });
+        const now = new Date();
+        const newNote = {
+            clientId: this.generateId(),
+            text,
+            time: now.toISOString(), // ISO format for PocketBase DateTime
+            timeMs: now.getTime()     // Keep timestamp for local sorting/display
+        };
+        notes.unshift(newNote);
         this.save(notes);
+
+        log("Created note with clientId:", newNote.clientId);
+
+        // Sync to server
+        await Sync.pushToServer(newNote);
+
         return notes;
     },
-    delete(index) {
+    async delete(index) {
         const notes = this.get();
+        const noteId = notes[index]?.id;
         notes.splice(index, 1);
         this.save(notes);
+
+        // Delete from server
+        if (noteId) {
+            await Sync.deleteFromServer(noteId);
+        }
+
         return notes;
     },
-    deleteAll() {
+    async deleteAll() {
+        await Sync.deleteAllFromServer();
         this.save([]);
         return [];
     },
-    update(index, text) {
+    async update(index, text) {
         const notes = this.get();
         if (notes[index].text !== text) {
+            log("Store.update: Updating note", index, "with new text");
             notes[index].text = text;
             notes[index].edited = true;
             this.save(notes);
+
+            // Sync to server
+            log("Store.update: Syncing note", index, "to server");
+            await Sync.pushToServer(notes[index]);
+        } else {
+            log("Store.update: No changes detected for note", index);
         }
         return notes;
     }
@@ -41,7 +414,18 @@ const Store = {
 
 // --- Utilities ---
 const Utils = {
-    formatTime(ts) {
+    // Helper to get timestamp from note (handles both old and new format)
+    getTimestamp(note) {
+        // New format: timeMs property
+        if (note.timeMs) return note.timeMs;
+        // Old format: time as integer
+        if (typeof note.time === 'number') return note.time;
+        // Fallback: parse time as date string
+        return note.time ? new Date(note.time).getTime() : Date.now();
+    },
+
+    formatTime(note) {
+        const ts = this.getTimestamp(note);
         const d = new Date(ts);
         const locale = navigator.language || "de-DE";
         return d.toLocaleString(locale, {
@@ -52,7 +436,8 @@ const Utils = {
             minute: "2-digit",
         });
     },
-    formatTimeCompact(ts) {
+    formatTimeCompact(note) {
+        const ts = this.getTimestamp(note);
         const d = new Date(ts);
         const yy = String(d.getFullYear()).slice(-2);
         const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -108,14 +493,20 @@ const App = {
         actionDelete: document.getElementById("actionDelete")
     },
 
-    init() {
+    async init() {
         // Initialize debounced update
-        this.debouncedUpdate = Utils.debounce(AUTOSAVE_DELAY_MS, (index, text) => {
+        this.debouncedUpdate = Utils.debounce(AUTOSAVE_DELAY_MS, async (index, text) => {
             if (this.notes[index] && this.notes[index].text !== text) {
-                console.log("Autosaving note", index);
-                this.notes = Store.update(index, text);
+                log("Autosaving note", index);
+                this.notes = await Store.update(index, text);
             }
         });
+
+        // Initialize PocketBase sync
+        await Sync.init();
+
+        // Reload notes after sync
+        this.notes = Store.get();
 
         this.render();
         this.bindEvents();
@@ -149,29 +540,29 @@ const App = {
         window.copyNote = (i) => this.copyNote(i);
     },
 
-    addNote() {
+    async addNote() {
         const text = this.elements.input.value.trim();
         if (text) {
-            this.notes = Store.add(text);
+            this.notes = await Store.add(text);
             this.render();
             this.elements.input.value = "";
             this.elements.input.focus();
         }
     },
 
-    deleteNote(i) {
+    async deleteNote(i) {
         if (confirm("Notiz wirklich löschen?")) {
             // Cancel any pending debounced updates to avoid zombie writes
             // Ideally debounce would support cancellation, but simplistic reload is fine
-            this.notes = Store.delete(i);
+            this.notes = await Store.delete(i);
             this.render();
         }
     },
 
-    deleteAll() {
+    async deleteAll() {
         if (this.notes.length === 0) return;
         if (confirm("Wirklich ALLE Notizen löschen? Das kann nicht rückgängig gemacht werden.")) {
-            this.notes = Store.deleteAll();
+            this.notes = await Store.deleteAll();
             this.render();
         }
     },
@@ -179,7 +570,7 @@ const App = {
     generateExportString() {
         return this.notes
             .map((note) => {
-                const time = Utils.formatTimeCompact(note.time);
+                const time = Utils.formatTimeCompact(note);
                 return `## ${time}\n\n${note.text}\n\n`;
             })
             .join("");
@@ -204,7 +595,7 @@ const App = {
     async copyNote(i) {
         const note = this.notes[i];
         if (!note) return;
-        const time = Utils.formatTimeCompact(note.time);
+        const time = Utils.formatTimeCompact(note);
         const text = `## ${time}\n\n${note.text}\n\n`;
         try {
             await navigator.clipboard.writeText(text);
@@ -268,19 +659,21 @@ const App = {
         // With plaintext-only, textContent is exactly what we want
         const newText = e.target.textContent.trim();
         e.target.classList.toggle("editing", true);
+        log("Text changed, debouncing update for note", i);
         this.debouncedUpdate(i, newText);
     },
 
-    handleBlur(e) {
+    async handleBlur(e) {
         const i = parseInt(e.target.dataset.index);
         const newText = e.target.textContent.trim();
-        const currentText = this.notes[i].text;
+        const currentText = this.notes[i]?.text;
 
         e.target.classList.remove("editing");
 
         if (newText && newText !== currentText) {
+            log("Note blurred, saving changes for note", i);
             // Final save on blur
-            this.notes = Store.update(i, newText);
+            this.notes = await Store.update(i, newText);
             this.render(); // Re-render to ensure state consistency
         }
     },
@@ -296,7 +689,7 @@ const App = {
         list.innerHTML = this.notes.map((note, i) => `
         <div class="note">
           <div class="note-header">
-            <div class="note-time">${Utils.formatTime(note.time)} ${note.edited ? '<span style="font-size:12px;color:#6b7280;margin-left:6px">(bearbeitet)</span>' : ""}</div>
+            <div class="note-time">${Utils.formatTime(note)} ${note.edited ? '<span style="font-size:12px;color:#6b7280;margin-left:6px">(bearbeitet)</span>' : ""}</div>
             <div class="note-actions">
               <a class="note-copy" data-copy-index="${i}" onclick="copyNote(${i})" aria-label="Notiz kopieren">Kopieren</a>
               <button class="note-delete" onclick="deleteNote(${i})" title="Löschen" aria-label="Notiz löschen">✕</button>
@@ -366,7 +759,7 @@ const App = {
         }
     },
 
-    handleShareTarget() {
+    async handleShareTarget() {
         const urlParams = new URLSearchParams(window.location.search);
         let title = urlParams.get("title") || "";
         let text = urlParams.get("text") || "";
@@ -404,7 +797,7 @@ const App = {
 
         noteContent = noteContent.trim();
         if (noteContent) {
-            this.notes = Store.add(noteContent);
+            this.notes = await Store.add(noteContent);
             this.render();
             // Remove params without refreshing
             window.history.replaceState({}, document.title, window.location.pathname);

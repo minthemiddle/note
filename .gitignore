@@ -1,0 +1,14 @@
+# PocketBase data
+pb_data/
+
+# Binary
+note
+note.exe
+note-linux
+
+# Build artifacts
+dist/
+
+# Logs
+server.log
+*.log
